@@ -1,5 +1,4 @@
 import torch
-import torchvision
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
 import matplotlib.pyplot as plt
@@ -7,15 +6,18 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.data import random_split
 from torchvision.utils import make_grid
 import torch.nn as nn
-import torch.nn.functional as F
-
+import torch.optim as optim
+import time
+import os
 
 generator = torch.manual_seed(42)
 
 #train and test data directory
-data_dir = "../intel-image-class2/resources/seg_train/"
+data_dir = "../intel-image-class2/resources/seg_train"
 test_data_dir = "../intel-image-class2/resources/seg_test"
+params_dir = "./params"
 
+num_classes = 6
 
 #load the train and test data
 train_dataset = ImageFolder(data_dir, transform = transforms.Compose([
@@ -27,25 +29,11 @@ val_dataset = ImageFolder(test_data_dir, transforms.Compose([
 
 img, label = train_dataset[0]
 
-#output :
-#torch.Size([3, 150, 150]) 0
 
 def display_img(img,label):
     print(f"Label : {train_dataset.classes[label]}")
     plt.imshow(img.permute(1,2,0))
     plt.show()
-
-
-batch_size = 128
-val_size = 2000
-train_size = len(train_dataset) - val_size
-num_workers = 4
-
-train_data,val_data = random_split(train_dataset, [train_size, val_size], generator=generator)
-
-#load the train and validation into batches.
-train_dl = DataLoader(train_data, batch_size, shuffle = True, num_workers = num_workers, pin_memory = True, generator=generator)
-val_dl = DataLoader(val_data, batch_size * 2, num_workers = num_workers, pin_memory = True, generator=generator)
 
 
 def show_batch(dl):
@@ -109,6 +97,9 @@ class VGG16(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
+        # We will calculate the number of features automatically based on the input size
+        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
+
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512 * 7 * 7, 4096),
@@ -126,13 +117,142 @@ class VGG16(nn.Module):
         x = self.conv_block3(x)
         x = self.conv_block4(x)
         x = self.conv_block5(x)
+        x = self.avgpool(x)
         x = self.fc_layers(x)
         return x
 
+val_size = 2000
+train_size = len(train_dataset) - val_size
 
-# Example of creating the model and printing the architecture
-model = VGG16(num_classes=1000)
-print(model)
+# hyper-params
+batch_size = 4
+lr = 0.001
+num_epochs = 10
+
+train_data,val_data = random_split(train_dataset, [train_size, val_size], generator=generator)
+
+#load the train and validation into batches.
+train_dl = DataLoader(train_data, batch_size, shuffle=True, generator=generator)
+val_dl = DataLoader(val_data, batch_size * 2, shuffle=False, generator=generator)
+
+# we will try loading model parameters. if an error occurs we will generate new model parameters.
+try:
+    files = os.listdir(params_dir)
+
+    # if files is empty, raise an exception (which wil be handled by the except clause)
+    if len(files) == 0:
+        raise Exception('No params file found.')
+
+    params_path = f"{params_dir}/{max(files)}"
+
+    # Load the parameters from the most recent file
+    # (if files is empty, this will throw an, which wil be handled by the except clause)
+    model = torch.load(params_path)
+
+    print("Parameters loaded successfully.")
+except:
+    print("Failed to load parameters.")
+
+    # create new model
+    model = VGG16(num_classes=num_classes)
+
+
+# Define loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=lr)
+
+# If a GPU is available, move the model to the GPU
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
+
+def saveModel():
+    # concatenate name of the params directory with the current timestamp to obtain the file path.
+    params_path = f"{params_dir}/{str(int(time.time()))}.pt"
+
+    torch.save(model, params_path)
+
+    print("Parameters saved successfully.")
+
+# Define the training function
+def train_epoch():
+    model.train()
+    running_loss = 0.0
+    correct = 0
+    total = 0
+    c = 1
+
+    # for each batch
+    for inputs, labels in train_dl:
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+
+        # Forward pass
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+
+        # Accumulate loss and accuracy
+        running_loss += loss.item() * inputs.size(0)
+        _, predicted = torch.max(outputs, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+        print("count: " + str(c))
+
+        print("loss: " + str(loss.item()))
+
+        # save model once every 100 batches
+        if c % 100 == 1:  # print every once in a while
+            saveModel()
+
+        c += 1
+
+    epoch_loss = running_loss / len(train_dl.dataset)
+    epoch_accuracy = 100 * correct / total
+
+    return epoch_loss, epoch_accuracy
+
+
+def train():
+    for epoch in range(num_epochs):
+        # Train the model
+        train_loss, train_accuracy = train_epoch()
+        print(f'Epoch [{epoch + 1}/{num_epochs}], Train Loss: {train_loss:.4f}, Train Accuracy: {train_accuracy:.2f}%')
+
+        # Validate the model
+        val_loss, val_accuracy = validate()
+        print(f'Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%')
+
+    print('Training complete.')
+
+# Define the validation function
+def validate():
+    model.eval()
+    val_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for inputs, labels in val_dl:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
+            val_loss += loss.item() * inputs.size(0)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    val_loss /= len(val_dl.dataset)
+    val_accuracy = 100 * correct / total
+
+    return val_loss, val_accuracy
 
 if __name__ == '__main__':
     #display the first image in the dataset
@@ -148,3 +268,5 @@ if __name__ == '__main__':
     # output
     # Length of Train Data : 12034
     # Length of Validation Data : 2000
+
+    train()
