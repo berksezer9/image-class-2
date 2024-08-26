@@ -139,15 +139,15 @@ val_size = 2000
 train_size = len(train_dataset) - val_size
 
 # hyper-params
-batch_size = 4
+batch_size = 8
 lr = 0.001
-num_epochs = 10
+num_epochs = 30
 
 train_data,val_data = random_split(train_dataset, [train_size, val_size], generator=generator)
 
 #load the train and validation into batches.
-train_dl = DataLoader(train_data, batch_size, shuffle=True, generator=generator)
-val_dl = DataLoader(val_data, batch_size * 2, shuffle=False, generator=generator)
+train_dl = DataLoader(train_data, batch_size)
+val_dl = DataLoader(val_data, batch_size * 2)
 
 # define the model
 model = VGG16(num_classes=num_class)
@@ -195,7 +195,7 @@ def train_epoch():
     running_loss = 0.0
     correct = 0
     total = 0
-    c = 1
+    bc = 1
 
     # for each batch
     for inputs, labels in train_dl:
@@ -218,15 +218,15 @@ def train_epoch():
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
 
-        print("count: " + str(c))
+        print("batch count: " + str(bc))
 
         print("loss: " + str(loss.item()))
 
         # save model once every 100 batches
-        if c % 100 == 1:  # print every once in a while
+        if bc % 100 == 1:  # print every once in a while
             saveModel()
 
-        c += 1
+        bc += 1
 
     epoch_loss = running_loss / len(train_dl.dataset)
     epoch_accuracy = 100 * correct / total
