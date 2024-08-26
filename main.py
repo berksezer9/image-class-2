@@ -135,6 +135,66 @@ class VGG16(nn.Module):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 nn.init.constant_(m.bias, 0)
 
+class Arch1(nn.Module):
+    def __init__(self):
+        super(Arch1, self).__init__()
+
+        self.conv_block1 = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        self.conv_block2 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        self.conv_block3 = nn.Sequential(
+            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
+        )
+
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(82944, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),
+            nn.ReLU(),
+            nn.Linear(512, 6)
+        )
+
+        # Initialize weights
+        self._initialize_weights()
+
+    def forward(self, x):
+        x = self.conv_block1(x)
+        x = self.conv_block2(x)
+        x = self.conv_block3(x)
+        x = self.fc_layers(x)
+        return x
+
+    def _initialize_weights(self):
+        # do kaiming initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
+
 val_size = 2000
 train_size = len(train_dataset) - val_size
 
@@ -150,7 +210,7 @@ train_dl = DataLoader(train_data, batch_size)
 val_dl = DataLoader(val_data, batch_size * 2)
 
 # define the model
-model = VGG16(num_classes=num_class)
+model = Arch1()
 
 # we will try loading model parameters. if an error occurs we will generate new model parameters.
 try:
