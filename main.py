@@ -111,6 +111,9 @@ class VGG16(nn.Module):
             nn.Linear(4096, num_classes)
         )
 
+        # Initialize weights
+        self._initialize_weights()
+
     def forward(self, x):
         x = self.conv_block1(x)
         x = self.conv_block2(x)
@@ -120,6 +123,17 @@ class VGG16(nn.Module):
         x = self.avgpool(x)
         x = self.fc_layers(x)
         return x
+
+    def _initialize_weights(self):
+        # do kaiming initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                nn.init.constant_(m.bias, 0)
 
 val_size = 2000
 train_size = len(train_dataset) - val_size
@@ -157,7 +171,7 @@ try:
 except Exception:
     print("Failed to load parameters. Make sure you have the './params' dir")
 
-    # @toDO: initialize parameters
+    # no need to initialize parameters since model.__init__() already handled initialization.
 
 # define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
