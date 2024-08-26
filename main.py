@@ -15,9 +15,9 @@ generator = torch.manual_seed(42)
 #train and test data directory
 data_dir = "../intel-image-class2/resources/seg_train"
 test_data_dir = "../intel-image-class2/resources/seg_test"
-params_dir = "./params"
+params_dir = "../intel-image-class2/params"
 
-num_classes = 6
+num_class = 6
 
 #load the train and test data
 train_dataset = ImageFolder(data_dir, transform = transforms.Compose([
@@ -48,7 +48,7 @@ def show_batch(dl):
 
 
 class VGG16(nn.Module):
-    def __init__(self, num_classes=1000):
+    def __init__(self, num_classes):
         super(VGG16, self).__init__()
 
         self.conv_block1 = nn.Sequential(
@@ -135,6 +135,9 @@ train_data,val_data = random_split(train_dataset, [train_size, val_size], genera
 train_dl = DataLoader(train_data, batch_size, shuffle=True, generator=generator)
 val_dl = DataLoader(val_data, batch_size * 2, shuffle=False, generator=generator)
 
+# define the model
+model = VGG16(num_classes=num_class)
+
 # we will try loading model parameters. if an error occurs we will generate new model parameters.
 try:
     files = os.listdir(params_dir)
@@ -143,21 +146,20 @@ try:
     if len(files) == 0:
         raise Exception('No params file found.')
 
+    # path of the most recent params file
     params_path = f"{params_dir}/{max(files)}"
 
-    # Load the parameters from the most recent file
-    # (if files is empty, this will throw an, which wil be handled by the except clause)
-    model = torch.load(params_path)
+    # Load the parameters from the path
+    # (if files is empty, this will raise an exception, which wil be handled by the except clause)
+    model.load_state_dict(torch.load(params_path, weights_only=True))
 
     print("Parameters loaded successfully.")
-except:
-    print("Failed to load parameters.")
+except Exception:
+    print("Failed to load parameters. Make sure you have the './params' dir")
 
-    # create new model
-    model = VGG16(num_classes=num_classes)
+    # @toDO: initialize parameters
 
-
-# Define loss function and optimizer
+# define the loss function and optimizer
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=lr)
 
@@ -169,7 +171,7 @@ def saveModel():
     # concatenate name of the params directory with the current timestamp to obtain the file path.
     params_path = f"{params_dir}/{str(int(time.time()))}.pt"
 
-    torch.save(model, params_path)
+    torch.save(model.state_dict(), params_path)
 
     print("Parameters saved successfully.")
 
@@ -255,11 +257,11 @@ def validate():
     return val_loss, val_accuracy
 
 if __name__ == '__main__':
-    #display the first image in the dataset
-    display_img(*train_dataset[0])
-
-    #display the first batch
-    show_batch(train_dl)
+    # #display the first image in the dataset
+    # display_img(*train_dataset[0])
+    #
+    # #display the first batch
+    # show_batch(train_dl)
 
     # print the lengths
     print(f"Length of Train Data : {len(train_data)}")
