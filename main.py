@@ -47,120 +47,39 @@ def show_batch(dl):
         break
 
 
-class VGG16(nn.Module):
-    def __init__(self, num_classes):
-        super(VGG16, self).__init__()
-
-        self.conv_block1 = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        self.conv_block2 = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        self.conv_block3 = nn.Sequential(
-            nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        self.conv_block4 = nn.Sequential(
-            nn.Conv2d(in_channels=256, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        self.conv_block5 = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2)
-        )
-
-        # We will calculate the number of features automatically based on the input size
-        self.avgpool = nn.AdaptiveAvgPool2d((7, 7))
-
-        self.fc_layers = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(512 * 7 * 7, 4096),
-            nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(4096, 4096),
-            nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(4096, num_classes)
-        )
-
-        # Initialize weights
-        self._initialize_weights()
-
-    def forward(self, x):
-        x = self.conv_block1(x)
-        x = self.conv_block2(x)
-        x = self.conv_block3(x)
-        x = self.conv_block4(x)
-        x = self.conv_block5(x)
-        x = self.avgpool(x)
-        x = self.fc_layers(x)
-        return x
-
-    def _initialize_weights(self):
-        # do kaiming initialization
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                nn.init.constant_(m.bias, 0)
-
 class Arch1(nn.Module):
     def __init__(self):
         super(Arch1, self).__init__()
 
         self.conv_block1 = nn.Sequential(
             nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
         self.conv_block2 = nn.Sequential(
             nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
 
         self.conv_block3 = nn.Sequential(
             nn.Conv2d(in_channels=128, out_channels=256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),  # Batch Norm after Conv Layer
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
@@ -168,8 +87,10 @@ class Arch1(nn.Module):
         self.fc_layers = nn.Sequential(
             nn.Flatten(),
             nn.Linear(82944, 1024),
+            nn.BatchNorm1d(1024),  # Batch Norm for Fully Connected Layer
             nn.ReLU(),
             nn.Linear(1024, 512),
+            nn.BatchNorm1d(512),  # Batch Norm for Fully Connected Layer
             nn.ReLU(),
             nn.Linear(512, 6)
         )
@@ -194,12 +115,15 @@ class Arch1(nn.Module):
             elif isinstance(m, nn.Linear):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
                 nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d) or isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
 val_size = 2000
 train_size = len(train_dataset) - val_size
 
 # hyper-params
-batch_size = 8
+batch_size = 32
 lr = 0.001
 num_epochs = 30
 
@@ -283,7 +207,7 @@ def train_epoch():
         print("loss: " + str(loss.item()))
 
         # save model once every 100 batches
-        if bc % 100 == 1:  # print every once in a while
+        if bc % 10 == 1:  # print every once in a while
             saveModel()
 
         bc += 1
